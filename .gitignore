@@ -3,3 +3,5 @@ tests/tests.o
 tests/tests
 tests/utf8to7.o
 tests/utf8to7
+tests/utf7to8.o
+tests/utf7to8

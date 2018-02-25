@@ -3,6 +3,8 @@
 #include <string.h>
 #include "../utf7.h"
 
+#define BUFLEN 4096
+
 static void
 die(const char *s)
 {
@@ -11,7 +13,7 @@ die(const char *s)
 }
 
 unsigned char *
-utf8_simple(unsigned char *s, long *c)
+utf8_decode(unsigned char *s, long *c)
 {
     unsigned char *next;
     if (s[0] < 0x80) {
@@ -45,25 +47,26 @@ int
 main(void)
 {
     size_t z = 0;
-    char out[4096];
-    unsigned char in[4096] = {0};
+    char out[BUFLEN];
+    unsigned char in[BUFLEN] = {0};
     unsigned char *p = in;
-    struct utf7 ctx = UTF7_INIT(0, 0);
 
+    struct utf7 ctx = UTF7_INIT(0, 0);
     ctx.buf = out;
-    ctx.len = sizeof(out);
+    ctx.len = sizeof(out) - 4;
+
     for (;;) {
         long c;
         if (z - (p - in) < 4) {
             size_t rem = z - (p - in);
             memmove(in, p, rem);
             p = in;
-            z = rem + fread(in + rem, 1, sizeof(in) - rem, stdin);
+            z = rem + fread(in + rem, 1, sizeof(in) - 4 - rem, stdin);
         }
         if (p == in + z)
             break;
 
-        p = utf8_simple(p, &c);
+        p = utf8_decode(p, &c);
         if (c < 0 || p > in + z) die("invalid input");
 
         while (utf7_encode(&ctx, c, 0) != UTF7_OK) {
