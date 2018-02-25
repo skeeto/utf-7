@@ -29,6 +29,12 @@ this behavior for the given code point and forces it to be indirectly
 encoded (e.g. base64). This may be desirable for certain characters,
 such as `=` (EQUALS SIGN).
 
+When there is nothing more to encode, call the encoder with `UTF7_FLUSH`
+as the code point to force all remaining output from the context. This
+behaves just like any other code point, particularly with respect to the
+return values below, but obviously this value will not be written into
+the output.
+
 The `buf` and `len` fields are updated as output is written to the
 output buffer. Code points outside the Basic Multilingual Plane (BMP)
 are automatically encoded into surrogate halves for UTF-7.
