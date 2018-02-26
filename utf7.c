@@ -152,8 +152,8 @@ utf7_encode(struct utf7 *ctx, long c)
             unsigned long xh = 0xd800UL + (x >> 10);
             unsigned long xl = 0xdc00UL + (x & 0x3ffUL);
 
-            /* flush as much as possible with one byte to spare */
-            if (utf7_partial(ctx) != UTF7_OK || !ctx->len)
+            /* require at least byte to spare */
+            if (!ctx->len)
                 return UTF7_FULL;
 
             /* codepoint can now be fully consumed */
