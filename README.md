@@ -83,7 +83,7 @@ There are four possible return values:
   there is no more input, this should be treated as an error, since the
   input was truncated.
 
-* `UTF7_INVALID`: The input is not valid UTF-7. The offending byte lies
-  one byte before the `buf` pointer.
+* `UTF7_INVALID`: The input is not valid UTF-7. The offending byte is
+  pointed to by `buf`.
 
 * Any other return value is a code point.

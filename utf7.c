@@ -207,11 +207,14 @@ utf7_decode(struct utf7 *ctx)
     while (ctx->len) {
         char c = *ctx->buf++;
         ctx->len--;
-        if ((signed char)c < 0 || (unsigned char)c > 127)
+        if ((signed char)c < 0 || (unsigned char)c > 127) {
+            ctx->buf--;
+            ctx->len++;
             return UTF7_INVALID;
+        }
 
         if (ctx->flags & UTF7_F_OPEN) {
-            /* decoding already open */
+            /* currently shift decoding */
             int v;
 
             if (!(ctx->flags & UTF7_F_USED) && c == 0x2d) {
@@ -228,12 +231,16 @@ utf7_decode(struct utf7 *ctx)
 
                 if (ctx->bits >= 6) {
                     /* too many bits in accumulation buffer */
+                    ctx->buf--;
+                    ctx->len++;
                     return UTF7_INVALID;
                 }
 
                 mask = (1UL << ctx->bits) - 1;
                 if (ctx->accum & mask) {
                     /* non-zero trailing base64 bits */
+                    ctx->buf--;
+                    ctx->len++;
                     return UTF7_INVALID;
                 }
 
@@ -245,6 +252,8 @@ utf7_decode(struct utf7 *ctx)
                         return c;
                     } else {
                         /* shift encoded ended without being used */
+                        ctx->buf--;
+                        ctx->len++;
                         return UTF7_INVALID;
                     }
                 }
@@ -260,18 +269,15 @@ utf7_decode(struct utf7 *ctx)
                 }
             }
 
-        } else {
-            /* not currently decoding base64 */
-            if (c == 0x2b) {
-                /* begin decoding base64 */
-                ctx->flags |= UTF7_F_OPEN;
-                ctx->flags &= ~UTF7_F_USED;
-                ctx->bits = 0;
+        } else if (c == 0x2b) {
+            /* begin decoding base64 */
+            ctx->flags |= UTF7_F_OPEN;
+            ctx->flags &= ~UTF7_F_USED;
+            ctx->bits = 0;
 
-            } else {
-                /* direct encoded character */
-                return c;
-            }
+        } else {
+            /* direct encoded character */
+            return c;
         }
     }
 
