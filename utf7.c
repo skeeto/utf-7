@@ -205,9 +205,9 @@ long
 utf7_decode(struct utf7 *ctx)
 {
     while (ctx->len) {
-        char c = *ctx->buf++;
+        int c = *ctx->buf++;
         ctx->len--;
-        if ((signed char)c < 0 || (unsigned char)c > 127) {
+        if (c < 0 || c > 127) {
             ctx->buf--;
             ctx->len++;
             return UTF7_INVALID;
