@@ -50,8 +50,9 @@ main(void)
     char out[BUFLEN];
     unsigned char in[BUFLEN] = {0};
     unsigned char *p = in;
+    struct utf7 ctx;
 
-    struct utf7 ctx = UTF7_INIT(0, 0);
+    utf7_init(&ctx, 0);
     ctx.buf = out;
     ctx.len = sizeof(out) - 4;
 
@@ -69,14 +70,14 @@ main(void)
         p = utf8_decode(p, &c);
         if (c < 0 || p > in + z) die("invalid input");
 
-        while (utf7_encode(&ctx, c, 0) != UTF7_OK) {
+        while (utf7_encode(&ctx, c) != UTF7_OK) {
             fwrite(out, 1, ctx.buf - out, stdout);
             ctx.buf = out;
             ctx.len = sizeof(out);
         }
     }
 
-    while (utf7_encode(&ctx, UTF7_FLUSH, 0) != UTF7_OK) {
+    while (utf7_encode(&ctx, UTF7_FLUSH) != UTF7_OK) {
         fwrite(out, 1, ctx.buf - out, stdout);
         ctx.buf = out;
         ctx.len = sizeof(out);

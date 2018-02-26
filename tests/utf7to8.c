@@ -43,10 +43,12 @@ main(void)
     unsigned char out[8];
     unsigned char *end;
     char in[BUFLEN] = {0};
+    struct utf7 ctx;
 
-    struct utf7 ctx = UTF7_INIT(0, 0);
+    utf7_init(&ctx, 0);
     ctx.buf = in;
     ctx.len = fread(in, 1, sizeof(in), stdin);
+
     if (ctx.len == 0 && ferror(stdin))
         die("input error");
 

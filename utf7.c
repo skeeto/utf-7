@@ -11,12 +11,32 @@
 #define UTF7_F_USED  (1U << 1)  /* something has been encoded */
 
 static int
-utf7_isdirect(long c)
+utf7_isdirect(const struct utf7 *ctx, long c)
 {
-    static const unsigned short isdirect[] = {
+    return c <= 127 && ((ctx->direct[c / 16] >> (c % 16)) & 1U);
+}
+
+void
+utf7_init(struct utf7 *ctx, const char *indirect)
+{
+    static const unsigned short direct[] = {
         0x2600, 0x0000, 0xF7FF, 0xFFFF, 0xFFFF, 0xEFFF, 0xFFFF, 0x3FFF
     };
-    return c <= 127 && ((isdirect[c / 16] >> (c % 16)) & 1U);
+    int i;
+    ctx->buf = 0;
+    ctx->len = 0;
+    ctx->accum = 0;
+    ctx->bits = 0;
+    ctx->flags = 0;
+    for (i = 0; i < (int)(sizeof(direct) / sizeof(*direct)); i++)
+        ctx->direct[i] = direct[i];
+    if (indirect) {
+        for (; *indirect; indirect++) {
+            int c = *indirect;
+            if (c < 128)
+                ctx->direct[c / 16] &= ~(1U << (c % 16));
+        }
+    }
 }
 
 static int
@@ -104,7 +124,7 @@ utf7_close(struct utf7 *ctx, int next)
 }
 
 int
-utf7_encode(struct utf7 *ctx, long c, unsigned flags)
+utf7_encode(struct utf7 *ctx, long c)
 {
     /* flush crumbs left from last code point */
     if (utf7_partial(ctx) != UTF7_OK)
@@ -113,7 +133,7 @@ utf7_encode(struct utf7 *ctx, long c, unsigned flags)
     if (c == UTF7_FLUSH)
         return utf7_close(ctx, 0x2d);
 
-    if ((flags & UTF7_INDIRECT) || !utf7_isdirect(c)) {
+    if (!utf7_isdirect(ctx, c)) {
         /* use an indirect encoding */
 
         /* Start encoding if not already */

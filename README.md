@@ -1,43 +1,57 @@
 # A UTF-7 stream encoder and decoder in ANSI C
 
 This is small, free-standing, public domain library encodes a stream of
-code points into UTF-7 and vice versa. It requires as little as 16 bytes
+code points into UTF-7 and vice versa. It requires as little as 32 bytes
 of memory for its internal state.
 
-Your job is to zero-initialize (`UTF7_INIT`) a context struct (`struct
-utf7`), set its `buf` and `len` pointers to a buffer for input or
-output, then "pump" the encoder or decoder similarly to zlib.
+Initialize a context struct (`struct utf7`), set its `buf` and `len`
+pointers to a buffer for input or output, then "pump" the encoder or
+decoder similarly to zlib.
 
 ```c
 char buffer[256];
-struct utf7 ctx = UTF7_INIT(buffer, sizeof(buffer));
+struct utf7 ctx;
+
+utf7_init(&ctx, "=@"); /* indirectly encode = and @ */
+ctx.buf = buffer;
+ctx.len = sizeof(buffer));
 ```
 
 The context must be re-initialized before switching between encoding and
 decoding.
 
+## `utf7_init()`
+
+```c
+void utf7_init(struct utf7 *, const char *indirect);
+```
+
+The `utf7_init()` function initializes a context for either encoding
+or decoding. The `indirect` argument is optional and may be NULL. It
+is ignored when the context is used for decoding. By default the
+encoder directly encodes every character that is permitted to be
+directly encoded. The `indirect` argument subtracts from this set of
+directly-encoded characters. This may be desirable for certain
+characters, such as `=` (EQUALS SIGN).
+
 ## `utf7_encode()`
 
 ```c
-int utf7_encode(struct utf7 *, long codepoint, unsigned flags);
+int utf7_encode(struct utf7 *, long codepoint);
 ```
 
-This function writes the given code point to the buffer pointed to by
-the context. The encoder uses a *direct* encoding for all *optionally
-direct* code points by default. Using the `UTF7_INDIRECT` flag overrides
-this behavior for the given code point and forces it to be indirectly
-encoded (e.g. base64). This may be desirable for certain characters,
-such as `=` (EQUALS SIGN).
+The `utf7_encode()` function writes a code point to the buffer pointed
+to by the context. The `buf` and `len` fields are updated on the
+context as output is produced. Code points outside the Basic
+Multilingual Plane (BMP) are automatically encoded as surrogate halves
+for UTF-7.
 
-When there is nothing more to encode, call the encoder with `UTF7_FLUSH`
-as the code point to force all remaining output from the context. This
-behaves just like any other code point, particularly with respect to the
-return values below, but obviously this value will not be written into
-the output.
-
-The `buf` and `len` fields are updated as output is written to the
-output buffer. Code points outside the Basic Multilingual Plane (BMP)
-are automatically encoded into surrogate halves for UTF-7.
+When there is nothing more to encode, call the encoder with the
+special `UTF7_FLUSH` code point to force all remaining output from the
+context. This behaves just like any other code point, particularly
+with respect to the return values below, but obviously this value will
+not be written into the output. After flushing, the context will
+effectively be reinitialized.
 
 There are two possible return values:
 
@@ -56,8 +70,9 @@ long utf7_decode(struct utf7 *);
 ```
 
 This function operates in reverse, consuming input from `buf` on the
-context and returning a code point. Code points outside the BMP are left
-as surrogate halves, so it is up to the caller to re-assemble them.
+context and returning a code point. Code points outside the BMP are
+left as surrogate halves, so it is up to the caller to re-assemble
+them if necessary.
 
 There are four possible return values:
 

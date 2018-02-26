@@ -27,32 +27,24 @@ wputs(const wchar_t *s)
     }
 }
 
-static const wchar_t *
-find(const wchar_t *s, wchar_t c)
-{
-    for (; *s; s++)
-        if (c == *s)
-            return s;
-    return 0;
-}
-
 static int
-decode_in_chunks(const wchar_t *in, char *out, size_t n, const wchar_t *dir)
+decode_in_chunks(const wchar_t *in, char *out, size_t n, const char *indirect)
 {
     int fills = 0;
     const wchar_t *p;
-    struct utf7 ctx = UTF7_INIT(0, 0);
+    struct utf7 ctx;
+
+    utf7_init(&ctx, indirect);
     ctx.buf = out;
     ctx.len = n;
 
     for (p = in; *p; p++) {
-        unsigned flags = !!find(dir, *p);
-        while (utf7_encode(&ctx, *p, flags) != UTF7_OK) {
+        while (utf7_encode(&ctx, *p) != UTF7_OK) {
             fills++;
             ctx.len = n;
         }
     }
-    while (utf7_encode(&ctx, UTF7_FLUSH, 0) != UTF7_OK) {
+    while (utf7_encode(&ctx, UTF7_FLUSH) != UTF7_OK) {
         fills++;
         ctx.len = n;
     }
@@ -61,14 +53,14 @@ decode_in_chunks(const wchar_t *in, char *out, size_t n, const wchar_t *dir)
 }
 
 static int
-run_chunker(const wchar_t *in, const char *expect, const wchar_t *dir)
+run_chunker(const wchar_t *in, const char *expect, const char *indirect)
 {
     size_t n;
     for (n = 1; ; n++) {
         int fills;
         char out[256] = {0};
 
-        fills = decode_in_chunks(in, out, n, dir);
+        fills = decode_in_chunks(in, out, n, indirect);
         if (strcmp(out, expect)) {
             printf(C_RED("FAIL") " (n = %ld): '", (long)n);
             wputs(in);
@@ -92,9 +84,12 @@ decode(const char *in, const wchar_t *expect, size_t size)
     long c;
     wchar_t out[256];
     size_t outlen = 0;
-    struct utf7 ctx = UTF7_INIT(0, 0);
+    struct utf7 ctx;
+
+    utf7_init(&ctx, 0);
     ctx.buf = (char *)in;
     ctx.len = strlen(in);
+
     while ((c = utf7_decode(&ctx)) >= 0)
         out[outlen++] = c;
     out[outlen] = 0;
@@ -128,43 +123,44 @@ main(void)
     {
         wchar_t in[] = L"1 + 2 = 3;";
         const char *expect = "1 +- 2 +AD0 3;";
-        fails += run_chunker(in, expect, L"=");
+        fails += run_chunker(in, expect, "=");
     }
-    
+
     {
         wchar_t in[] = L" r^2";
         const char *expect = "+A8A-r^2";
         in[0] = 0x03c0; /* π */
-        fails += run_chunker(in, expect, L"=");
+        fails += run_chunker(in, expect, "=");
     }
 
     {
         wchar_t in[] = L"~~+";
         const char *expect = "+AH4AfgAr-";
-        fails += run_chunker(in, expect, L"");
+        fails += run_chunker(in, expect, 0);
     }
 
     {
         wchar_t in[] = L"~-";
         const char *expect = "+AH4--";
-        fails += run_chunker(in, expect, L"");
+        fails += run_chunker(in, expect, 0);
     }
 
     {
         wchar_t in[] = L"\\[\t]";
         const char *expect = "+AFw[+AAk]";
-        fails += run_chunker(in, expect, L"\t");
+        fails += run_chunker(in, expect, "\t");
     }
 
     {
         long in = 0x1f4a9L; /* PILE OF POO */
         char out[16] = {0};
         const char *expect = "+2D3cqQ-";
-        struct utf7 ctx = UTF7_INIT(0, 0);
+        struct utf7 ctx;
+        utf7_init(&ctx, 0);
         ctx.buf = out;
         ctx.len = sizeof(out);
-        utf7_encode(&ctx, in, 0);
-        utf7_encode(&ctx, UTF7_FLUSH, 0);
+        utf7_encode(&ctx, in);
+        utf7_encode(&ctx, UTF7_FLUSH);
         if (strcmp(out, expect)) {
             puts(C_RED("FAIL") ": PILE OF POO [U+1F4A9]");
             printf("  expect: \"%s\"\n", expect);
@@ -179,12 +175,13 @@ main(void)
         long in[2] = {0xd83dL, 0xdca9L}; /* PILE OF POO */
         char out[16] = {0};
         const char *expect = "+2D3cqQ-";
-        struct utf7 ctx = UTF7_INIT(0, 0);
+        struct utf7 ctx;
+        utf7_init(&ctx, 0);
         ctx.buf = out;
         ctx.len = sizeof(out);
-        utf7_encode(&ctx, in[0], 0);
-        utf7_encode(&ctx, in[1], 0);
-        utf7_encode(&ctx, UTF7_FLUSH, 0);
+        utf7_encode(&ctx, in[0]);
+        utf7_encode(&ctx, in[1]);
+        utf7_encode(&ctx, UTF7_FLUSH);
         if (strcmp(out, expect)) {
             puts(C_RED("FAIL") ": PILE OF POO [U+D83D, U+DCA9]");
             printf("  expect: \"%s\"\n", expect);
@@ -200,12 +197,13 @@ main(void)
         long in[2] = {0x03c0, 0x1f4a9};
         char out[16] = {0};
         const char *expect = "+A8DYPdyp-";
-        struct utf7 ctx = UTF7_INIT(0, 0);
+        struct utf7 ctx;
+        utf7_init(&ctx, 0);
         ctx.buf = out;
         ctx.len = sizeof(out);
-        utf7_encode(&ctx, in[0], 0);
-        utf7_encode(&ctx, in[1], 0);
-        utf7_encode(&ctx, UTF7_FLUSH, 0);
+        utf7_encode(&ctx, in[0]);
+        utf7_encode(&ctx, in[1]);
+        utf7_encode(&ctx, UTF7_FLUSH);
         if (strcmp(out, expect)) {
             puts(C_RED("FAIL") ": [U+03C0, U+1F4A9]");
             printf("  expect: \"%s\"\n", expect);
@@ -231,7 +229,8 @@ main(void)
     {
         long r;
         const char name[] = "empty shift encode incomplete";
-        struct utf7 ctx = UTF7_INIT(0, 0);
+        struct utf7 ctx;
+        utf7_init(&ctx, 0);
         ctx.buf = "+";
         ctx.len = 1;
         r = utf7_decode(&ctx);
@@ -244,7 +243,8 @@ main(void)
     {
         long r;
         const char name[] = "empty shift encode invalid";
-        struct utf7 ctx = UTF7_INIT(0, 0);
+        struct utf7 ctx;
+        utf7_init(&ctx, 0);
         ctx.buf = "+]";
         ctx.len = 2;
         r = utf7_decode(&ctx);
@@ -257,7 +257,8 @@ main(void)
     {
         long r;
         const char name[] = "partial shift encode invalid";
-        struct utf7 ctx = UTF7_INIT(0, 0);
+        struct utf7 ctx;
+        utf7_init(&ctx, 0);
         ctx.buf = "+A-";
         ctx.len = 3;
         r = utf7_decode(&ctx);
@@ -270,7 +271,8 @@ main(void)
     {
         long r[2];
         const char name[] = "non-zero padding bits";
-        struct utf7 ctx = UTF7_INIT(0, 0);
+        struct utf7 ctx;
+        utf7_init(&ctx, 0);
         ctx.buf = "+///-";
         ctx.len = 5;
         r[0] = utf7_decode(&ctx);
@@ -284,7 +286,8 @@ main(void)
     {
         long r;
         const char name[] = "8-bit clean invalid";
-        struct utf7 ctx = UTF7_INIT(0, 0);
+        struct utf7 ctx;
+        utf7_init(&ctx, 0);
         ctx.buf = "\xff";
         ctx.len = 1;
         r = utf7_decode(&ctx);

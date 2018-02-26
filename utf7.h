@@ -16,10 +16,6 @@
 #define UTF7_INCOMPLETE  -3
 #define UTF7_INVALID     -4
 
-/* utf7_encode() flags */
-#define UTF7_INDIRECT    (1U << 0)
-
-#define UTF7_INIT(buf, len) {(buf), (len), 0, 0, 0}
 struct utf7 {
     char *buf;
     size_t len;
@@ -27,9 +23,11 @@ struct utf7 {
     unsigned long accum;
     int bits;
     unsigned flags;
+    unsigned short direct[8];
 };
 
-int  utf7_encode(struct utf7 *, long codepoint, unsigned flags);
+void utf7_init(struct utf7 *, const char *indirect);
+int  utf7_encode(struct utf7 *, long codepoint);
 long utf7_decode(struct utf7 *);
 
 #endif
