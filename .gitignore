@@ -1,7 +1,6 @@
-utf7.o
-tests/tests.o
+tests/conv7
+tests/conv7.o
 tests/tests
-tests/utf8to7.o
-tests/utf8to7
-tests/utf7to8.o
-tests/utf7to8
+tests/tests.o
+tests/utf8.o
+utf7.o
