@@ -94,11 +94,6 @@ decode(const char *in, const wchar_t *expect, size_t size)
         out[outlen++] = c;
     out[outlen] = 0;
     if (memcmp(out, expect, size)) {
-        int i;
-        for (i = 0; i < 3; i++) {
-            printf("e U+%04x\n", expect[i]);
-            printf("a U+%04x\n", out[i]);
-        }
         printf(C_RED("FAIL") ": decode \"%s\"\n", in);
         printf("  expect: \"");
         wputs(expect);
@@ -222,7 +217,7 @@ main(void)
 
     {
         const char in[] = "+A8DYPdyp-";
-        const wchar_t expect[] = {0x03c0, 0xd83d, 0xdca9, 0};
+        const wchar_t expect[] = {0x03c0, 0x1f4a9, 0};
         fails += decode(in, expect, sizeof(expect));
     }
 
@@ -296,6 +291,85 @@ main(void)
         else
             printf(C_GREEN("PASS") ": %s\n", name);
     }
+
+    {
+        long r;
+        const char name[] = "double high surrogate invalid";
+        struct utf7 ctx;
+        char in[] = "+2D3YPQ-";
+        utf7_init(&ctx, 0);
+        ctx.buf = in;
+        ctx.len = sizeof(in) - 1;
+        r = utf7_decode(&ctx);
+        if (r != UTF7_INVALID)
+            printf(C_RED("FAIL") ": %s [%04lx]\n", name, r);
+        else
+            printf(C_GREEN("PASS") ": %s\n", name);
+    }
+
+    {
+        long r;
+        const char name[] = "unpaired low surrogate invalid";
+        struct utf7 ctx;
+        char in[] = "+3Kk-";
+        utf7_init(&ctx, 0);
+        ctx.buf = in;
+        ctx.len = sizeof(in) - 1;
+        r = utf7_decode(&ctx);
+        if (r != UTF7_INVALID)
+            printf(C_RED("FAIL") ": %s [%04lx]\n", name, r);
+        else
+            printf(C_GREEN("PASS") ": %s\n", name);
+    }
+
+    {
+        long r;
+        const char name[] = "unpaired high surrogate invalid";
+        struct utf7 ctx;
+        char in[] = "+2D0]";
+        utf7_init(&ctx, 0);
+        ctx.buf = in;
+        ctx.len = sizeof(in) - 1;
+        r = utf7_decode(&ctx);
+        if (r != UTF7_INVALID)
+            printf(C_RED("FAIL") ": %s [%04lx]\n", name, r);
+        else
+            printf(C_GREEN("PASS") ": %s\n", name);
+    }
+
+    {
+        long r;
+        const char name[] = "unpaired high surrogate incomplete";
+        struct utf7 ctx;
+        char in[] = "+2D0-";
+        utf7_init(&ctx, 0);
+        ctx.buf = in;
+        ctx.len = sizeof(in) - 1;
+        r = utf7_decode(&ctx);
+        if (r != UTF7_INCOMPLETE)
+            printf(C_RED("FAIL") ": %s [%ld]\n", name, r);
+        else
+            printf(C_GREEN("PASS") ": %s\n", name);
+    }
+
+    {
+        long r[2];
+        const char name[] = "decode surragate across split";
+        struct utf7 ctx;
+        char in[] = "+2D3cqQ-";
+        utf7_init(&ctx, 0);
+        ctx.buf = in;
+        ctx.len = 4;
+        r[0] = utf7_decode(&ctx);
+        ctx.len = 4;
+        r[1] = utf7_decode(&ctx);
+        if (r[0] != UTF7_INCOMPLETE || r[1] != 0x1f4a9L)
+            printf(C_RED("FAIL") ": %s [%04lx]\n", name, r[1]);
+        else
+            printf(C_GREEN("PASS") ": %s\n", name);
+    }
+
+    return fails ? EXIT_FAILURE : EXIT_SUCCESS;
 
     return fails ? EXIT_FAILURE : EXIT_SUCCESS;
 }

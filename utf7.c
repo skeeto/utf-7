@@ -19,17 +19,11 @@ utf7_isdirect(const struct utf7 *ctx, long c)
 void
 utf7_init(struct utf7 *ctx, const char *indirect)
 {
-    static const unsigned short direct[] = {
-        0x2600, 0x0000, 0xF7FF, 0xFFFF, 0xFFFF, 0xEFFF, 0xFFFF, 0x3FFF
+    struct utf7 zero = {
+        0, 0, 0, 0, 0, 0,
+        {0x2600, 0x0000, 0xF7FF, 0xFFFF, 0xFFFF, 0xEFFF, 0xFFFF, 0x3FFF}
     };
-    int i;
-    ctx->buf = 0;
-    ctx->len = 0;
-    ctx->accum = 0;
-    ctx->bits = 0;
-    ctx->flags = 0;
-    for (i = 0; i < (int)(sizeof(direct) / sizeof(*direct)); i++)
-        ctx->direct[i] = direct[i];
+    *ctx = zero;
     if (indirect) {
         for (; *indirect; indirect++) {
             int c = *indirect;
@@ -201,6 +195,18 @@ utf7_encode(struct utf7 *ctx, long c)
     }
 }
 
+static int
+utf7_ishigh(long c)
+{
+    return c >= 0xd800L && c <= 0xdbffL;
+}
+
+static int
+utf7_islow(long c)
+{
+    return c >= 0xdc00L && c <= 0xdfffL;
+}
+
 long
 utf7_decode(struct utf7 *ctx)
 {
@@ -247,9 +253,16 @@ utf7_decode(struct utf7 *ctx)
                 ctx->flags &= ~UTF7_F_OPEN;
                 /* consume closing '-' if present */
                 if (c != 0x2d) {
-                    if (ctx->flags & UTF7_F_USED) {
+                    if (ctx->high) {
+                        /* unpaired high surrogate */
+                        ctx->buf--;
+                        ctx->len++;
+                        return UTF7_INVALID;
+
+                    } else if (ctx->flags & UTF7_F_USED) {
                         /* valid ending for shift encoding */
                         return c;
+
                     } else {
                         /* shift encoded ended without being used */
                         ctx->buf--;
@@ -264,8 +277,37 @@ utf7_decode(struct utf7 *ctx)
                 ctx->accum = (ctx->accum << 6) | v;
                 ctx->bits += 6;
                 if (ctx->bits >= 16) {
+                    /* extract a code point */
                     ctx->bits -= 16;
-                    return (ctx->accum >> ctx->bits) & 0xffff;
+                    c = (ctx->accum >> ctx->bits) & 0xffff;
+
+                    if (ctx->high) {
+                        /* next code point must be low surrogate */
+                        unsigned long h = ctx->high;
+                        if (!utf7_islow(c)) {
+                            ctx->buf--;
+                            ctx->len++;
+                            return UTF7_INVALID;
+                        }
+                        ctx->high = 0;
+                        c = ((h - 0xd800UL) * 0x400UL) +
+                            ((c - 0xdc00UL) + 0x10000UL);
+
+                    } else if (utf7_ishigh(c)) {
+                        /* recurse to look for low surrogate */
+                        ctx->high = c;
+                        return utf7_decode(ctx);
+                    }
+
+                    else if (utf7_islow(c)) {
+                        /* unpaired low surrogate */
+                        ctx->buf--;
+                        ctx->len++;
+                        return UTF7_INVALID;
+                    }
+
+                    /* not a surrogate */
+                    return c;
                 }
             }
 
@@ -277,11 +319,19 @@ utf7_decode(struct utf7 *ctx)
 
         } else {
             /* direct encoded character */
+            if (ctx->high) {
+                /* there was an unpaired high surrogate */
+                ctx->buf--;
+                ctx->len++;
+                return UTF7_INVALID;
+            }
             return c;
         }
     }
 
     if (ctx->flags & UTF7_F_OPEN)
+        return UTF7_INCOMPLETE;
+    if (ctx->high)
         return UTF7_INCOMPLETE;
     return UTF7_OK;
 }

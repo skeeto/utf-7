@@ -70,9 +70,8 @@ long utf7_decode(struct utf7 *);
 ```
 
 This function operates in reverse, consuming input from `buf` on the
-context and returning a code point. Code points outside the BMP are
-left as surrogate halves, so it is up to the caller to re-assemble
-them if necessary.
+context and returning a code point. Surrogate halves in the underlying
+stream are automatically recombined into a non-BMP code point.
 
 There are four possible return values:
 

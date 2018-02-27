@@ -23,6 +23,7 @@ struct utf7 {
     unsigned long accum;
     int bits;
     unsigned flags;
+    unsigned high;
     unsigned short direct[8];
 };
 
