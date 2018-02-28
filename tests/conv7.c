@@ -16,6 +16,8 @@
 #define CTX_INCOMPLETE  -3
 #define CTX_INVALID     -4
 
+#define CTX_FLUSH       -1L
+
 struct ctx {
     char *buf;
     size_t len;
@@ -116,7 +118,7 @@ convert(struct ctx *fr, decoder de, struct ctx *to, encoder en)
 
 finish:
     /* flush whatever is left */
-    while (en(to, -1) == CTX_FULL) {
+    while (en(to, CTX_FLUSH) == CTX_FULL) {
         if (!fwrite(bo, to->buf - bo, 1, stdout))
             die("stdout:%lu: %s", lineno, strerror(errno));
         to->buf = bo;
