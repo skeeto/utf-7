@@ -1,19 +1,11 @@
-#define _POSIX_C_SOURCE 2
 #include <errno.h>
 #include <stdio.h>
 #include <stdarg.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h> /* getopt(3) */
-
-#if defined(__DJGPP__)
-/* DJGPP broken headers workaround */
-int getopt(int, char *const[], const char *);
-extern char *optarg;
-extern int optind, opterr, optopt;
-#endif
 
 #include "utf8.h"
+#include "getopt.h"
 #include "../utf7.h"
 
 #define BUFLEN 4096
@@ -174,10 +166,11 @@ static void
 set_binary_mode(void)
 {
 #ifdef _WIN32
+    int _setmode(int, int); /* io.h */
     _setmode(_fileno(stdin), 0x8000);
     _setmode(_fileno(stdout), 0x8000);
 #elif __DJGPP__
-    int setmode(int, int);
+    int setmode(int, int);  /* prototypes hidden by __STRICT_ANSI__ */
     int fileno(FILE *stream);
     setmode(fileno(stdin), 0x0004);
     setmode(fileno(stdout), 0x0004);
