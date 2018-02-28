@@ -14,12 +14,19 @@ tests/tests.o: tests/tests.c utf7.h
 tests/utf8.o: tests/utf8.c utf7.h
 tests/conv7.o: tests/conv7.c utf7.h
 
+conv7-cli.c: tests/conv7.c utf7.c tests/utf8.c utf7.h tests/utf8.h
+	cat utf7.h tests/utf8.h \
+	    tests/utf8.c utf7.c tests/getopt.h tests/conv7.c | \
+	    sed -r 's@^(#include +".+)@/* \1 */@g' > $@
+
 check: tests/tests
 	tests/tests
 
+amalgamation: conv7-cli.c
+
 clean:
 	rm -rf utf7.o tests/tests.o tests/tests
-	rm -rf tests/conv7 $(conv7)
+	rm -rf conv7-cli.c tests/conv7 $(conv7)
 
 .c.o:
 	$(CC) -c $(CFLAGS) -o $@ $<
