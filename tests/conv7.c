@@ -6,6 +6,13 @@
 #include <string.h>
 #include <unistd.h> /* getopt(3) */
 
+#if defined(__DJGPP__)
+/* DJGPP broken headers workaround */
+int getopt(int, char *const[], const char *);
+extern char *optarg;
+extern int optind, opterr, optopt;
+#endif
+
 #include "utf8.h"
 #include "../utf7.h"
 
@@ -163,6 +170,22 @@ usage(FILE *f)
     fprintf(f, "Supported encodings: utf-7, utf-8\n");
 }
 
+static void
+set_binary_mode(void)
+{
+#ifdef _WIN32
+    _setmode(_fileno(stdin), 0x8000);
+    _setmode(_fileno(stdout), 0x8000);
+#elif __DJGPP__
+    int setmode(int, int);
+    int fileno(FILE *stream);
+    setmode(fileno(stdin), 0x0004);
+    setmode(fileno(stdout), 0x0004);
+#else /* __unix__ */
+    /* nothing to do */
+#endif
+}
+
 int
 main(int argc, char **argv)
 {
@@ -208,6 +231,9 @@ main(int argc, char **argv)
 
     if (argv[optind])
         die("unknown command line argument, %s", argv[optind]);
+
+    /* Switch stdin/stdout to binary if necessary */
+    set_binary_mode();
 
     switch (fr) {
         case F_UNKNOWN:
