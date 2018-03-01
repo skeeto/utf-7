@@ -50,10 +50,12 @@ static struct {
     const char name[8];
     enum encoding e;
 } encoding_table[] = {
+    {"7", F_UTF7},
     {"utf7", F_UTF7},
     {"utf-7", F_UTF7},
     {"UTF7", F_UTF7},
     {"UTF-7", F_UTF7},
+    {"8", F_UTF8},
     {"utf8", F_UTF8},
     {"utf-8", F_UTF8},
     {"UTF8", F_UTF8},
