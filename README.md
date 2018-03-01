@@ -81,7 +81,7 @@ There are four possible return values:
   stream.
 
 * `UTF7_INCOMPLETE`: Input was exhausted but more input is expected. If
-  there is no more input, this should be treated as an error, since the
+  there is no more input, this should be treated as an error since the
   input was truncated.
 
 * `UTF7_INVALID`: The input is not valid UTF-7. The offending byte is
