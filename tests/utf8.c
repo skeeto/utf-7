@@ -3,7 +3,7 @@
 void
 utf8_init(struct utf8 *ctx)
 {
-    struct utf8 zero = {0};
+    struct utf8 zero = {0, 0, {0, 0, 0, 0}, 0};
     *ctx = zero;
 }
 
