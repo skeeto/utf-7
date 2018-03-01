@@ -13,6 +13,8 @@
 
 #define BUFLEN 4096
 
+#define BOM 0xfeffL
+
 #define CTX_OK          -1
 #define CTX_FULL        -2
 #define CTX_INCOMPLETE  -3
@@ -72,12 +74,37 @@ encoding_parse(const char *s)
     return F_UNKNOWN;
 }
 
+enum bom_mode {BOM_PASS, BOM_ADD, BOM_REMOVE};
+
 static void
-convert(struct ctx *fr, decoder de, struct ctx *to, encoder en)
+push(struct ctx *to, encoder en, long c, unsigned long lineno)
+{
+    while (en(to, c) == CTX_FULL) {
+        to->buf -= BUFLEN;
+        to->len = BUFLEN;
+        if (!fwrite(to->buf, BUFLEN, 1, stdout))
+            die("stdout:%lu: %s", lineno, strerror(errno));
+    }
+}
+
+struct convert {
+    struct ctx *fr;
+    struct ctx *to;
+    decoder de;
+    encoder en;
+};
+
+static void
+convert(struct convert *s, enum bom_mode bom)
 {
     char bi[BUFLEN];
     char bo[BUFLEN];
     unsigned long lineno = 1;
+
+    struct ctx *fr = s->fr;
+    struct ctx *to = s->to;
+    decoder de = s->de;
+    encoder en = s->en;
 
     fr->buf = bi;
     fr->len = 0;
@@ -85,8 +112,16 @@ convert(struct ctx *fr, decoder de, struct ctx *to, encoder en)
     to->buf = bo;
     to->len = sizeof(bo);
 
+    if (bom == BOM_ADD) {
+        push(to, en, BOM, lineno);
+        bom = BOM_REMOVE;
+    }
+
     for (;;) {
         long c = de(fr);
+        if (bom == BOM_REMOVE && c == BOM)
+            c = de(fr);
+
         switch (c) {
             case CTX_OK:
             case CTX_INCOMPLETE:
@@ -114,23 +149,14 @@ convert(struct ctx *fr, decoder de, struct ctx *to, encoder en)
                 lineno++;
                 /* FALLTHROUGH */
             default:
-                while (en(to, c) == CTX_FULL) {
-                    if (!fwrite(bo, to->buf - bo, 1, stdout))
-                        die("stdout:%lu: %s", lineno, strerror(errno));
-                    to->buf = bo;
-                    to->len = sizeof(bo);
-                }
+                push(to, en, c, lineno);
+                bom = BOM_PASS;
         }
     }
 
 finish:
     /* flush whatever is left */
-    while (en(to, CTX_FLUSH) == CTX_FULL) {
-        if (!fwrite(bo, to->buf - bo, 1, stdout))
-            die("stdout:%lu: %s", lineno, strerror(errno));
-        to->buf = bo;
-        to->len = sizeof(bo);
-    }
+    push(to, en, CTX_FLUSH, lineno);
     if (to->buf - bo && !fwrite(bo, to->buf - bo, 1, stdout))
         die("stdout:%lu: %s", lineno, strerror(errno));
     if (fflush(stdout) == EOF)
@@ -164,7 +190,9 @@ wrap_utf8_decode(struct ctx *ctx)
 static void
 usage(FILE *f)
 {
-    fprintf(f, "usage: conv7 [-e SET] [-f FMT] -h [-t FMT]\n");
+    fprintf(f, "usage: conv7 -bch [-e SET] [-f FMT] [-t FMT]\n");
+    fprintf(f, "  -b        add a BOM if necessary\n");
+    fprintf(f, "  -c        clear a BOM if present\n");
     fprintf(f, "  -e SET    extra indirect characters (UTF-7)\n");
     fprintf(f, "  -f FMT    input encoding [utf-7]\n");
     fprintf(f, "  -h        print help info [utf-7]\n");
@@ -192,23 +220,28 @@ set_binary_mode(void)
 int
 main(int argc, char **argv)
 {
+    enum bom_mode bom = BOM_PASS;
     enum encoding fr = F_UTF7;
     enum encoding to = F_UTF7;
     const char *indirect = 0;
 
-    encoder en = 0;
     struct utf7 fr_utf7;
     struct utf8 fr_utf8;
-    struct ctx *fr_ctx = 0;
 
-    decoder de = 0;
     struct utf7 to_utf7;
     struct utf8 to_utf8;
-    struct ctx *to_ctx = 0;
+
+    struct convert cvt = {0, 0, 0, 0};
 
     int option;
-    while ((option = getopt(argc, argv, "e:f:ht:")) != -1) {
+    while ((option = getopt(argc, argv, "bce:f:ht:")) != -1) {
         switch (option) {
+            case 'b':
+                bom = BOM_ADD;
+                break;
+            case 'c':
+                bom = BOM_REMOVE;
+                break;
             case 'e':
                 indirect = optarg;
                 break;
@@ -243,13 +276,13 @@ main(int argc, char **argv)
             abort();
             break;
         case F_UTF7:
-            fr_ctx = (void *)&fr_utf7;
-            de = wrap_utf7_decode;
+            cvt.fr = (void *)&fr_utf7;
+            cvt.de = wrap_utf7_decode;
             utf7_init(&fr_utf7, 0);
             break;
         case F_UTF8:
-            fr_ctx = (void *)&fr_utf8;
-            de = wrap_utf8_decode;
+            cvt.fr = (void *)&fr_utf8;
+            cvt.de = wrap_utf8_decode;
             utf8_init(&fr_utf8);
             break;
     }
@@ -259,17 +292,17 @@ main(int argc, char **argv)
             abort();
             break;
         case F_UTF7:
-            to_ctx = (void *)&to_utf7;
-            en = wrap_utf7_encode;;
+            cvt.to = (void *)&to_utf7;
+            cvt.en = wrap_utf7_encode;;
             utf7_init(&to_utf7, indirect);
             break;
         case F_UTF8:
-            to_ctx = (void *)&to_utf8;
-            en = wrap_utf8_encode;;
+            cvt.to = (void *)&to_utf8;
+            cvt.en = wrap_utf8_encode;;
             utf8_init(&to_utf8);
             break;
     }
 
-    convert(fr_ctx, de, to_ctx, en);
+    convert(&cvt, bom);
     return 0;
 }
