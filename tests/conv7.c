@@ -1,3 +1,6 @@
+/* Convert between UTF-7 and other encodings on standard I/O
+ * This is free and unencumbered software released into the public domain.
+ */
 #include <errno.h>
 #include <stdio.h>
 #include <stdarg.h>

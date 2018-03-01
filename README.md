@@ -1,8 +1,10 @@
 # A UTF-7 stream encoder and decoder in ANSI C
 
 This is small, free-standing, public domain library encodes a stream of
-code points into UTF-7 and vice versa. It requires as little as 32 bytes
-of memory for its internal state.
+code points into UTF-7 and vice versa. It requires only a single, small
+struct for its entire internal state.
+
+## API
 
 Initialize a context struct (`struct utf7`), set its `buf` and `len`
 pointers to a buffer for input or output, then "pump" the encoder or
@@ -20,7 +22,7 @@ ctx.len = sizeof(buffer));
 The context must be re-initialized before switching between encoding and
 decoding.
 
-## `utf7_init()`
+### `utf7_init()`
 
 ```c
 void utf7_init(struct utf7 *, const char *indirect);
@@ -34,7 +36,7 @@ directly encoded. The `indirect` argument subtracts from this set of
 directly-encoded characters. This may be desirable for certain
 characters, such as `=` (EQUALS SIGN).
 
-## `utf7_encode()`
+### `utf7_encode()`
 
 ```c
 int utf7_encode(struct utf7 *, long codepoint);
@@ -63,7 +65,7 @@ There are two possible return values:
   and continue the operation by calling it again with the exact same
   arguments.
 
-## `utf7_decode()`
+### `utf7_decode()`
 
 ```c
 long utf7_decode(struct utf7 *);
@@ -86,3 +88,15 @@ There are four possible return values:
   pointed to by `buf`.
 
 * Any other return value is a code point.
+
+## conv7
+
+Under `tests/` is a simple command line tool called `conv7` that
+converts between UTF-7 and other encodings via standard input and
+standard output. For example, to convert a UTF-8 file to UTF-7:
+
+    $ conv7 -f utf-8 <in-u8.txt >out-u7.txt
+
+Or vice versa:
+
+    $ conv7 -t utf-8 <in-u7.txt >out-u8.txt
