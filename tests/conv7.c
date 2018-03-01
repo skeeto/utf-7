@@ -87,7 +87,10 @@ convert(struct ctx *fr, decoder de, struct ctx *to, encoder en)
             case CTX_INCOMPLETE:
                 /* fetch more data */
                 fr->buf = bi;
-                fr->len = fread(bi, 1, sizeof(bi), stdin);
+                if (feof(stdin))
+                    fr->len = 0;
+                else
+                    fr->len = fread(bi, 1, sizeof(bi), stdin);
                 if (!fr->len) {
                     if (ferror(stdin))
                         die("stdin:%lu: %s", lineno, strerror(errno));
@@ -124,6 +127,8 @@ finish:
         to->len = sizeof(bo);
     }
     if (to->buf - bo && !fwrite(bo, to->buf - bo, 1, stdout))
+        die("stdout:%lu: %s", lineno, strerror(errno));
+    if (fflush(stdout) == EOF)
         die("stdout:%lu: %s", lineno, strerror(errno));
 }
 
