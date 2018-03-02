@@ -47,14 +47,27 @@ enum encoding {
     F_UTF8
 };
 
+/* Print an error message and immediately exit with a failure.
+ *
+ * If the format string begins with a colon, don't prefix the program
+ * name to the error message. This is useful for showing error messages
+ * with file line numbers. If the format string ends with a colon,
+ * append strerror(errno) to the end of the message.
+ */
 static void
 die(const char *fmt, ...)
 {
     va_list ap;
     va_start(ap, fmt);
-    fprintf(stderr, "conv7: ");
+    if (*fmt == ':')
+        fmt++;
+    else
+        fprintf(stderr, "conv7: ");
     vfprintf(stderr, fmt, ap);
-    fputc('\n', stderr);
+    if (fmt[strlen(fmt) - 1] == ':')
+        fprintf(stderr, " %s\n", strerror(errno));
+    else
+        fputc('\n', stderr);
     va_end(ap);
     exit(EXIT_FAILURE);
 }
@@ -88,13 +101,13 @@ encoding_parse(const char *s)
 enum bom_mode {BOM_PASS, BOM_ADD, BOM_REMOVE};
 
 static void
-push(union polyctx *to, encoder encode, long c, unsigned long lineno)
+push(union polyctx *to, encoder encode, long c)
 {
     while (encode(to, c) == CTX_FULL) {
         to->generic.buf -= BUFLEN;
         to->generic.len = BUFLEN;
         if (!fwrite(to->generic.buf, BUFLEN, 1, stdout))
-            die("stdout:%lu: %s", lineno, strerror(errno));
+            die(":<stdout>:");
     }
 }
 
@@ -117,7 +130,7 @@ convert(struct ctx *ctx, enum bom_mode bom)
     to->generic.len = sizeof(bo);
 
     if (bom == BOM_ADD) {
-        push(to, en, BOM, lineno);
+        push(to, en, BOM);
         bom = BOM_REMOVE;
     }
 
@@ -137,34 +150,34 @@ convert(struct ctx *ctx, enum bom_mode bom)
                     fr->generic.len = fread(bi, 1, sizeof(bi), stdin);
                 if (!fr->generic.len) {
                     if (ferror(stdin))
-                        die("stdin:%lu: %s", lineno, strerror(errno));
+                        die(":<stdin>:%lu:", lineno);
                     if (c == UTF7_INCOMPLETE)
-                        die("stdin:%lu: truncated input", lineno);
+                        die(":<stdin>:%lu: truncated input", lineno);
                     goto finish;
                 }
                 break;
 
             case CTX_INVALID:
                 /* abort for invalid input */
-                die("stdin:%lu: invalid input", lineno);
+                die(":<stdin>:%lu: invalid input", lineno);
                 break;
 
             case 0x0a:
                 lineno++;
                 /* FALLTHROUGH */
             default:
-                push(to, en, c, lineno);
+                push(to, en, c);
                 bom = BOM_PASS;
         }
     }
 
 finish:
     /* flush whatever is left */
-    push(to, en, CTX_FLUSH, lineno);
+    push(to, en, CTX_FLUSH);
     if (to->generic.buf - bo && !fwrite(bo, to->generic.buf - bo, 1, stdout))
-        die("stdout:%lu: %s", lineno, strerror(errno));
+        die(":<stdout>:%lu:", lineno);
     if (fflush(stdout) == EOF)
-        die("stdout:%lu: %s", lineno, strerror(errno));
+        die(":<stdout>:%lu:", lineno);
 }
 
 static int
@@ -245,7 +258,7 @@ main(int argc, char **argv)
             case 'f':
                 fr = encoding_parse(optarg);
                 if (!fr)
-                    die("unknown encoding, %s", optarg);
+                    die("unknown encoding, '%s'", optarg);
                 break;
             case 'h':
                 usage(stdout);
@@ -254,7 +267,7 @@ main(int argc, char **argv)
             case 't':
                 to = encoding_parse(optarg);
                 if (!to)
-                    die("unknown encoding, %s", optarg);
+                    die("unknown encoding, '%s'", optarg);
                 break;
             default:
                 usage(stderr);
@@ -263,7 +276,7 @@ main(int argc, char **argv)
     }
 
     if (argv[optind])
-        die("unknown command line argument, %s", argv[optind]);
+        die("unknown command line argument, '%s'", argv[optind]);
 
     /* Switch stdin/stdout to binary if necessary */
     set_binary_mode();
