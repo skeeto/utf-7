@@ -11,8 +11,8 @@
 #else
 #  define C_RED(s)     "\033[31;1m" s "\033[0m"
 #  define C_GREEN(s)   "\033[32;1m" s "\033[0m"
-#  define C_YELLOW(s)  "\033[33;1m"    s "\033[0m"
-#  define C_MAGENTA(s) "\033[35;1m"    s "\033[0m"
+#  define C_YELLOW(s)  "\033[33;1m" s "\033[0m"
+#  define C_MAGENTA(s) "\033[35;1m" s "\033[0m"
 #endif
 
 static long
